@@ -1,63 +1,87 @@
-from cmath import sqrt
-import math
 import tkinter as tk
+from tkinter import ttk
 
-def calculate():
-    choice = operation.get()
-    if choice != '^':
-        number_1 = float(entry1.get())
-        number_2 = float(entry2.get())
+from calculator_core import CalculationError, calculate, format_result
 
-    # add
-    if choice == "+":
-        result = number_1 + number_2
-    # subtract
-    elif choice == "-":
-        result = number_1 - number_2
-    # multiplication
-    elif choice == "*":
-        result = number_1 * number_2
-    # division
-    elif choice == "/":
-        result = number_1 / number_2
-    # percent
-    elif choice == "%":
-        result = number_1 % number_2
-    # square root
-    elif choice == "^":
-        num = float(entry1.get())
-        if num < 0:
-            result = "Cannot take square root of a negative number!"
-        else:
-            result = sqrt(num)
 
-    output_label.config(text=result)
+OPERATIONS = {
+    "Add (+)": "+",
+    "Subtract (-)": "-",
+    "Multiply (×)": "*",
+    "Divide (÷)": "/",
+    "Remainder (%)": "%",
+    "Square root (√)": "^",
+}
 
-# Create the GUI window
-window = tk.Tk()
-window.title("Calculator")
 
-# Create an entry field to input first number
-entry1 = tk.Entry(window, width=35, borderwidth=5)
-entry1.grid(row=0, column=0, columnspan=2, padx=10, pady=10)
+def create_app() -> tk.Tk:
+    window = tk.Tk()
+    window.title("Calculator")
+    window.minsize(360, 250)
 
-# Create an entry field to input second number
-entry2 = tk.Entry(window, width=35, borderwidth=5)
-entry2.grid(row=1, column=0, columnspan=2, padx=10, pady=10)
+    frame = ttk.Frame(window, padding=16)
+    frame.grid(sticky="nsew")
+    window.columnconfigure(0, weight=1)
+    window.rowconfigure(0, weight=1)
+    frame.columnconfigure(1, weight=1)
 
-# Create a dropdown for the operation choice
-operation_choices = ['+', '-', '*', '/', '%', '^']
-operation = tk.StringVar()
-operation.set('+')
-operation_dropdown = tk.OptionMenu(window, operation, *operation_choices)
-operation_dropdown.grid(row=2, column=0, padx=10, pady=10)
+    ttk.Label(frame, text="First number:").grid(row=0, column=0, sticky="w", pady=5)
+    first_entry = ttk.Entry(frame)
+    first_entry.grid(row=0, column=1, sticky="ew", pady=5)
 
-# Create a button to perform the calculation
-calculate_button = tk.Button(window, text="Calculate", command=calculate)
-calculate_button.grid(row=2, column=1, padx=10, pady=10)
+    second_label = ttk.Label(frame, text="Second number:")
+    second_label.grid(row=1, column=0, sticky="w", pady=5)
+    second_entry = ttk.Entry(frame)
+    second_entry.grid(row=1, column=1, sticky="ew", pady=5)
 
-# Create a label to display the output
-output_label = tk.Label(window, text="")
-output_label.grid(row=3, column=0, columnspan=2, padx=10, pady=10)
+    ttk.Label(frame, text="Operation:").grid(row=2, column=0, sticky="w", pady=5)
+    operation = tk.StringVar(value="Add (+)")
+    operation_menu = ttk.Combobox(
+        frame,
+        textvariable=operation,
+        values=list(OPERATIONS),
+        state="readonly",
+    )
+    operation_menu.grid(row=2, column=1, sticky="ew", pady=5)
 
-window.mainloop()
+    result = tk.StringVar(value="Enter numbers and choose an operation.")
+    result_label = ttk.Label(
+        frame,
+        textvariable=result,
+        anchor="center",
+        justify="center",
+        wraplength=320,
+    )
+    result_label.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(16, 0))
+
+    def update_operand_state(*_args: object) -> None:
+        square_root = OPERATIONS[operation.get()] == "^"
+        second_entry.configure(state="disabled" if square_root else "normal")
+        second_label.configure(text="Second number (not needed):" if square_root else "Second number:")
+
+    def run_calculation(*_args: object) -> None:
+        try:
+            value = calculate(
+                OPERATIONS[operation.get()],
+                first_entry.get(),
+                second_entry.get(),
+            )
+        except CalculationError as error:
+            result.set(f"Error: {error}")
+            window.bell()
+            return
+        result.set(f"Result: {format_result(value)}")
+
+    calculate_button = ttk.Button(frame, text="Calculate", command=run_calculation)
+    calculate_button.grid(row=3, column=0, columnspan=2, pady=(12, 0))
+
+    operation.trace_add("write", update_operand_state)
+    window.bind("<Return>", run_calculation)
+    window.bind("<KP_Enter>", run_calculation)
+    window.bind("<Escape>", lambda _event: window.destroy())
+    first_entry.focus_set()
+    return window
+
+
+if __name__ == "__main__":
+    create_app().mainloop()
